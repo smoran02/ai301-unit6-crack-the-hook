@@ -59,7 +59,8 @@ def verdict_word(verdict):
 
 def say(text, indent=0):
     pad = " " * indent
-    print(textwrap.fill(text, WIDTH, initial_indent=pad, subsequent_indent=pad))
+    print(textwrap.fill(text, WIDTH, initial_indent=pad, subsequent_indent=pad,
+                        break_on_hyphens=False))
 
 
 def clear():
