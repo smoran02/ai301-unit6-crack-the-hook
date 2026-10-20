@@ -97,6 +97,19 @@ def pause(what):
     read(f"Press Enter to {what}. ")
 
 
+def commands(n):
+    return "1 command" if n == 1 else f"{n} commands"
+
+
+def outer_repo():
+    """The git repo this game folder sits inside, if any, such as a course
+    repo it was cloned or unzipped into by mistake."""
+    for folder in HERE.parents:
+        if (folder / ".git").exists():
+            return folder
+    return None
+
+
 class Game:
     def __init__(self):
         lines = DATA.read_text().splitlines()
@@ -155,7 +168,7 @@ class Game:
     def header(self, level, part, setup=True):
         clear()
         print(bold(LINE))
-        print(bold(f"LEVEL {level['number']} of {len(self.levels)}    {part}"))
+        print(bold(f"LEVEL {level['number']} of {len(self.levels)}  |  {part}"))
         print(bold(LINE))
         print()
         if setup:
@@ -202,7 +215,7 @@ class Game:
                  for command, _ in level["examples"]]
         score = 0
 
-        self.header(level, "Getting started")
+        self.header(level, "Before part 1: two examples")
         print("Here's what the hook did with two commands:")
         for command, verdict in board:
             print(f"  {verdict_word(verdict)}  {command}")
@@ -245,7 +258,7 @@ class Game:
         score += self.pick(level["leak"], lambda option: option["command"])
         pause("look inside the hook")
 
-        self.header(level, "Inside the hook", setup=False)
+        self.header(level, "After part 3: Inside the hook", setup=False)
         print("Here's the check inside the hook. It's written in Python.")
         print()
         for line in textwrap.dedent(level["code"]).splitlines():
@@ -253,6 +266,9 @@ class Game:
         print()
         say(level["plain"])
         print()
+        if "note" in level:
+            say(level["note"])
+            print()
         say(level["takeaway"])
         pause("go to part 4")
 
@@ -282,21 +298,22 @@ class Game:
         path = MY_HOOKS / f"level{level['number']}.py"
         note = None
         if path.exists():
-            note = "This is your copy from last time. Type r to start over with a fresh one."
+            note = "This is your copy from last time. Type r for a fresh one."
         else:
             self.fresh_copy(level, path)
         results = None
         while True:
             self.fix_screen(level, path, note, results)
             note = None
-            answer = read("Press Enter to test your hook (s to skip, r to start over): ")
+            answer = read("Press Enter to test your hook (s to skip, r for a fresh copy): ")
             if answer in ("s", "skip"):
                 print()
                 print("  Skipped. Your copy stays in the my-hooks folder.")
                 return 0
             if answer in ("r", "reset") or not path.exists():
                 self.fresh_copy(level, path)
-                note = "The game saved a fresh copy of the hook. Open it again."
+                note = ("The game saved a fresh copy of the hook. If it's open in "
+                        "your editor, close it without saving, then open it again.")
                 results = None
                 continue
             results = self.test_fix(level, path)
@@ -313,6 +330,14 @@ class Game:
         lines.insert(at, fix["comment"])
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text("\n".join(lines) + "\n")
+
+    def next_to(self, level):
+        """Where the player's copy sits: next to an earlier copy they
+        already edited, if there is one, or else in the game's folder."""
+        for other in reversed(self.levels[:level["number"] - 1]):
+            if (MY_HOOKS / f"level{other['number']}.py").exists():
+                return f", next to your level {other['number']} copy"
+        return ", in the game's folder"
 
     def checklist(self, level):
         """Every command the player saw in this level, with the answer a
@@ -345,10 +370,13 @@ class Game:
         say("Change the hook so this command gets a STOP. Every other command "
             "should still get the same answer as before.")
         print()
-        print("The game saved a copy of the hook in the my-hooks folder, next to")
-        print("play.py. Open it in your code editor:")
+        say(f"The game saved a copy of this hook as my-hooks/{path.name}"
+            f"{self.next_to(level)}. Open it in your code editor:")
         print()
         print("    " + str(path))
+        print()
+        click = "Cmd-click" if sys.platform == "darwin" else "Ctrl-click"
+        say(f"In VS Code's terminal, you can {click} the path to open it.")
         print()
         say(fix["hint"])
         print()
@@ -370,21 +398,30 @@ class Game:
             say("Fix the error and save the file. Then test it again.")
             print()
             return
-        print("Your hook's answers:")
+        print(bold("Test results"))
+        say("This is a small test suite. The game ran your hook on every "
+            "command from this level and checked each answer.")
+        print()
         for wanted in ("STOP", "PASS"):
             print(f"  Should {wanted}:")
             for command, want, got in results["rows"]:
                 if want == wanted:
                     mark = green("ok   ") if got == want else red("WRONG")
-                    print(f"    {mark}  {command}")
+                    print(f"    {mark} {command}")
         print()
         if results["fixed"]:
             print(green("Yes! You fixed it."))
             say(fix["done"])
         else:
-            wrong = sum(1 for _, want, got in results["rows"] if want != got)
-            still = "1 command is" if wrong == 1 else f"{wrong} commands are"
-            say(f"{still} still wrong. Change the file, save it, then test it again.")
+            stopped = sum(1 for _, want, got in results["rows"] if want == "PASS" != got)
+            passed = sum(1 for _, want, got in results["rows"] if want == "STOP" != got)
+            what = []
+            if stopped:
+                what.append(f"it stopped {commands(stopped)} that should PASS")
+            if passed:
+                what.append(f"it let through {commands(passed)} that should STOP")
+            say(f"Not yet: {' and '.join(what)}. Change the file, save it, then "
+                "test it again.")
         print()
 
     # ---------- the whole game ----------
@@ -395,27 +432,31 @@ class Game:
         print()
         print(self.intro)
         print()
-        last = len(self.levels)
-        numbers = [str(n) for n in range(1, last + 1)]
-        print(f"To jump to a level, type {' or '.join(numbers[1:])}. To go straight "
-              "to part 4 of a level, type f.")
-        choices = {n: int(n) for n in numbers}
-        choices[""] = 1
-        choices["f"] = "f"
-        start = ask("Press Enter to start level 1: ", choices,
-                    f"  Press Enter, type {' or '.join(numbers[1:])}, or type f.")
+        outer = outer_repo()
+        if outer:
+            print(red("Careful: this game is inside another git repo:"))
+            print("    " + str(outer))
+            say("Don't commit the game there. If that's your course repo, quit, "
+                "run cd ~, and clone the game again. Then delete this copy.")
+            print()
+        # Typing a level number still jumps there, and f (the old part 4
+        # shortcut) opens the options, so older instructions keep working.
+        choices = {"": 1, "o": "o", "f": "o"}
+        choices.update({str(level["number"]): level["number"] for level in self.levels})
+        start = ask("Press Enter to start level 1, or type o for more options: ",
+                    choices, "  Press Enter to start level 1, or type o for more options.")
+        if start == "o":
+            start = self.options()
 
-        if start == "f":
-            number = ask(f"Part 4 of which level? Type {', '.join(numbers[:-1])}, "
-                         f"or {numbers[-1]}: ", {n: int(n) for n in numbers},
-                         f"  Type {', '.join(numbers[:-1])}, or {numbers[-1]}.")
-            level = self.levels[number - 1]
+        if isinstance(start, str):
+            level = self.levels[int(start[len("fix"):]) - 1]
             got = self.part4(level)
             print()
             print(bold(f"Part 4 score: {got} of 1 point."))
             pause("finish")
             clear()
-            say("Run play.py again to play another level or fix another hook.")
+            say("To play another level or fix another hook, run play.py again "
+                "and type o. Don't commit or push anything from this game.")
             return
 
         total = possible = 0
@@ -423,7 +464,7 @@ class Game:
             got, out_of = self.play_level(level)
             total += got
             possible += out_of
-            if level["number"] < last:
+            if level["number"] < len(self.levels):
                 pause(f"start level {level['number'] + 1}")
             else:
                 pause("finish")
@@ -432,9 +473,33 @@ class Game:
         print(bold("CRACK THE HOOK"))
         print()
         print(bold(f"You finished! You got {total} of {possible} points."))
+        say("There's nothing to turn in. Don't commit or push anything from "
+            "this game.")
+        for paragraph in self.finish:
+            print()
+            say(paragraph)
         print()
-        say(self.finish)
+
+    def options(self):
+        """The more-options screen. Returns a level number to start at,
+        or "fixN" to go straight to part 4 of level N."""
+        options = [(f"Start at level {level['number']}", level["number"])
+                   for level in self.levels[1:]]
+        options += [(f"Fix the level {level['number']} hook (skip to level "
+                     f"{level['number']}, part 4)", f"fix{level['number']}")
+                    for level in self.levels if "question" not in level["fix"]]
+        letters = "abcdefgh"[:len(options)]
+        clear()
+        print(bold("CRACK THE HOOK    More options"))
         print()
+        for letter, (text, _) in zip(letters, options):
+            print(f"  {letter})  {text}")
+        print()
+        listed = f"{', '.join(letters[:-1])}, or {letters[-1]}"
+        choices = {letter: value for letter, (_, value) in zip(letters, options)}
+        choices[""] = 1
+        return ask(f"Type {listed}. Or press Enter to start level 1: ", choices,
+                   f"  Type {listed}, or press Enter to start level 1.")
 
 
 def main():
@@ -445,7 +510,8 @@ def main():
     try:
         game.run()
     except (Quit, KeyboardInterrupt):
-        print("\n\nBye! Run play.py again to play. You can jump to any level.")
+        print("\n\nBye! Run play.py again to come back. To start at a later level")
+        print("or go straight to fixing a hook, type o on the first screen.")
     finally:
         game.cleanup()
     return 0

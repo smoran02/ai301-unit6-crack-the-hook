@@ -1,27 +1,29 @@
 # Crack the Hook
 
-A game about Claude Code hooks, for the AI301 unit 6 activity. Each level has a hook with a secret rule. You guess what the hook does, pick its rule, find a command that gets past it, and then fix the hook.
+A game about Claude Code hooks, for the AI301 unit 6 activity. It runs on your computer with Python 3.8 or newer, and it uses no Claude credits.
 
-The commands in the game never really run, and the game uses no Claude credits.
+The game is practice. Nothing gets turned in, so don't commit or push anything from it.
 
 ## Get the game
 
+Open your code editor's terminal (in VS Code: **Terminal**, then **New Terminal**). You'll play there, so the file you edit in part 4 opens right next to the game. Then run:
+
 ```
+cd ~
 git clone https://github.com/smoran02/ai301-unit6-crack-the-hook.git
 cd ai301-unit6-crack-the-hook
 ```
 
-Or click **Code**, then **Download ZIP** on this page, and unzip it.
+`cd ~` puts the game in your home folder, so it doesn't land inside another repo, like your course repo.
 
 ## Play
 
-```
-python3 play.py
-```
+From the game's folder, run:
 
-On Windows, type `py play.py` instead. You need Python 3.8 or newer and nothing else.
+- Mac: `python3 play.py`
+- Windows: `py play.py`
 
-In parts 1 to 3, you type one letter and press Enter. In part 4, the game saves a copy of the hook in the `my-hooks` folder, and you fix it in your code editor. To go straight to part 4 of a level, type `f` on the first screen. Type `q` any time to quit.
+Not found? Try `python play.py`. The game explains the rest.
 
 ## One rule
 
